@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SangueBR — Estoque de sangue em tempo real</title>
+<link rel="stylesheet" href="sanguesp-styles.css">
+<!-- Google AdSense verificado -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4472840466327433" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<header class="topo" style="display:flex; align-items:flex-start; justify-content:space-between;">
+  <div>
+    <h1><svg width="26" height="26" viewBox="0 0 24 24" style="vertical-align:-5px; margin-right:6px;"><path d="M12 2C12 2 4 12 4 16.5C4 20.09 7.13 23 11 23H13C16.87 23 20 20.09 20 16.5C20 12 12 2 12 2Z" fill="#b3122b"/></svg>Sangue<span>BR</span></h1>
+    <p>Estoque de sangue dos hemocentros do Brasil, atualizado pela nossa equipe.</p>
+  </div>
+  <button class="btn-menu" id="btnAbrirMenu" aria-label="Filtrar por estado">☰</button>
+</header>
+
+<div class="overlay-menu" id="overlayMenu"></div>
+<nav class="gaveta-estados" id="gavetaEstados">
+  <div class="gaveta-cabecalho">
+    <h3>Filtrar por estado</h3>
+    <button class="gaveta-fechar" id="btnFecharMenu">✕</button>
+  </div>
+  <ul class="lista-estados" id="listaEstadosMenu"></ul>
+</nav>
+
+<div class="container">
+
+  <div class="legenda">
+    <span class="l-normal">Normal</span>
+    <span class="l-baixo">Baixo</span>
+    <span class="l-critico">Crítico</span>
+  </div>
+
+  <a href="cadastrar-doador.html" class="btn btn-primary btn-block" style="margin-bottom:20px;">
+    🩸 Quero ser avisado quando meu tipo estiver em falta
+  </a>
+
+  <div id="filtroAtivoLabel" style="font-size:14px; font-weight:700; margin-bottom:10px; display:none;">
+    Mostrando: <span id="filtroAtivoNome"></span>
+    <button id="btnLimparFiltro" style="background:none; border:none; color:var(--primary); font-weight:700; cursor:pointer; font-size:13px; margin-left:6px;">(ver todos)</button>
+  </div>
+
+  <div id="lista"></div>
+
+  <!-- Anúncio 2: fim da página -->
+  <div style="text-align:center; margin:24px 0;">
+    <!-- Sangue BR fim da página -->
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-client="ca-pub-4472840466327433"
+         data-ad-slot="6290583279"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+  </div>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+
+  <p style="font-size:12px; color:var(--muted); text-align:center; margin-top:10px;">
+    Os níveis são atualizados manualmente com base em comunicados públicos dos hemocentros.
+    Ainda não temos integração oficial com todas as unidades — se você trabalha em um hemocentro
+    e quer nos ajudar a manter isso em tempo real, <a href="mailto:sanguebr@protonmail.com">fale com a gente</a>.
+  </p>
+
+</div>
+
+<footer class="rodape">SangueBR — cada doação pode salvar até 4 vidas 🩸</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+  const TIPOS = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+
+  const ESTADOS = [
+    { sigla: '', nome: 'Todos os estados' },
+    { sigla: 'AC', nome: 'Acre' }, { sigla: 'AL', nome: 'Alagoas' },
+    { sigla: 'AP', nome: 'Amapá' }, { sigla: 'AM', nome: 'Amazonas' },
+    { sigla: 'BA', nome: 'Bahia' }, { sigla: 'CE', nome: 'Ceará' },
+    { sigla: 'DF', nome: 'Distrito Federal' }, { sigla: 'ES', nome: 'Espírito Santo' },
+    { sigla: 'GO', nome: 'Goiás' }, { sigla: 'MA', nome: 'Maranhão' },
+    { sigla: 'MT', nome: 'Mato Grosso' }, { sigla: 'MS', nome: 'Mato Grosso do Sul' },
+    { sigla: 'MG', nome: 'Minas Gerais' }, { sigla: 'PA', nome: 'Pará' },
+    { sigla: 'PB', nome: 'Paraíba' }, { sigla: 'PR', nome: 'Paraná' },
+    { sigla: 'PE', nome: 'Pernambuco' }, { sigla: 'PI', nome: 'Piauí' },
+    { sigla: 'RJ', nome: 'Rio de Janeiro' }, { sigla: 'RN', nome: 'Rio Grande do Norte' },
+    { sigla: 'RS', nome: 'Rio Grande do Sul' }, { sigla: 'RO', nome: 'Rondônia' },
+    { sigla: 'RR', nome: 'Roraima' }, { sigla: 'SC', nome: 'Santa Catarina' },
+    { sigla: 'SP', nome: 'São Paulo' }, { sigla: 'SE', nome: 'Sergipe' },
+    { sigla: 'TO', nome: 'Tocantins' },
+  ];
+
+  let estadoFiltroAtivo = '';
+
+  function montarMenuEstados() {
+    const lista = document.getElementById('listaEstadosMenu');
+    lista.innerHTML = ESTADOS.map(e => `
+      <li><button data-sigla="${e.sigla}" class="${estadoFiltroAtivo === e.sigla ? 'ativo' : ''}">${e.nome}</button></li>
+    `).join('');
+
+    lista.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        estadoFiltroAtivo = btn.dataset.sigla;
+        fecharGaveta();
+        atualizarLabelFiltro();
+        montarMenuEstados();
+        carregar();
+      });
+    });
+  }
+
+  function atualizarLabelFiltro() {
+    const label = document.getElementById('filtroAtivoLabel');
+    if (!estadoFiltroAtivo) {
+      label.style.display = 'none';
+      return;
+    }
+    const estado = ESTADOS.find(e => e.sigla === estadoFiltroAtivo);
+    document.getElementById('filtroAtivoNome').textContent = estado ? estado.nome : estadoFiltroAtivo;
+    label.style.display = 'block';
+  }
+
+  function abrirGaveta() {
+    document.getElementById('gavetaEstados').classList.add('aberta');
+    document.getElementById('overlayMenu').classList.add('aberto');
+  }
+  function fecharGaveta() {
+    document.getElementById('gavetaEstados').classList.remove('aberta');
+    document.getElementById('overlayMenu').classList.remove('aberto');
+  }
+
+  document.getElementById('btnAbrirMenu').addEventListener('click', abrirGaveta);
+  document.getElementById('btnFecharMenu').addEventListener('click', fecharGaveta);
+  document.getElementById('overlayMenu').addEventListener('click', fecharGaveta);
+  document.getElementById('btnLimparFiltro').addEventListener('click', () => {
+    estadoFiltroAtivo = '';
+    atualizarLabelFiltro();
+    montarMenuEstados();
+    carregar();
+  });
+
+  function pillClasse(nivel) {
+    if (nivel === 'normal') return 'nivel-normal';
+    if (nivel === 'baixo') return 'nivel-baixo';
+    if (nivel === 'critico') return 'nivel-critico';
+    return 'nivel-sem-dado';
+  }
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function renderHemocentro(hemo, estoquePorTipo) {
+    const pills = TIPOS.map(t => {
+      const nivel = estoquePorTipo[t] || 'sem-dado';
+      return `<div class="tipo-pill ${pillClasse(nivel)}">${t}</div>`;
+    }).join('');
+
+    return `
+      <div class="card-hemo">
+        <h3>${escapeHtml(hemo.nome)}</h3>
+        <div class="cidade">${escapeHtml(hemo.cidade)}</div>
+        <div class="grid-tipos">${pills}</div>
+      </div>
+    `;
+  }
+
+  function renderAnuncioMeio() {
+    return `
+      <div style="text-align:center; margin:16px 0;">
+        <!-- Sangue BR meio da lista -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-4472840466327433"
+             data-ad-slot="1937597262"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    `;
+  }
+
+  async function carregar() {
+    const lista = document.getElementById('lista');
+    lista.innerHTML = '<div class="vazio">Carregando...</div>';
+
+    let query = sb.from('hemocentros').select('*').eq('ativo', true).order('cidade');
+    if (estadoFiltroAtivo) query = query.eq('estado', estadoFiltroAtivo);
+    const { data: hemocentros, error: e1 } = await query;
+
+    const { data: estoque, error: e2 } = await sb
+      .from('estoque')
+      .select('*');
+
+    if (e1 || e2 || !hemocentros) {
+      lista.innerHTML = '<div class="vazio">Erro ao carregar os dados. Tente novamente.</div>';
+      return;
+    }
+
+    const estoquePorHemo = {};
+    (estoque || []).forEach(e => {
+      if (!estoquePorHemo[e.hemocentro_id]) estoquePorHemo[e.hemocentro_id] = {};
+      estoquePorHemo[e.hemocentro_id][e.tipo_sanguineo] = e.nivel;
+    });
+
+    if (hemocentros.length === 0) {
+      const nomeEstado = estadoFiltroAtivo ? (ESTADOS.find(e => e.sigla === estadoFiltroAtivo) || {}).nome : null;
+      lista.innerHTML = `<div class="vazio">${nomeEstado ? `Ainda não temos hemocentros cadastrados em ${nomeEstado}.` : 'Nenhum hemocentro cadastrado ainda.'}</div>`;
+      return;
+    }
+
+    lista.innerHTML = hemocentros
+      .map((h, i) => {
+        const card = renderHemocentro(h, estoquePorHemo[h.id] || {});
+        // Insere o anúncio logo depois do card do meio da lista.
+        const meio = Math.floor(hemocentros.length / 2);
+        return i === meio ? card + renderAnuncioMeio() : card;
+      })
+      .join('');
+
+    // Pede pro AdSense "ativar" os blocos de anúncio recém-inseridos no DOM.
+    document.querySelectorAll('.adsbygoogle').forEach(() => {
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* AdSense ainda não carregou */ }
+    });
+  }
+
+  montarMenuEstados();
+  carregar();
+</script>
+</body>
+</html>

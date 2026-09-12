@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastrar como doador — SangueBR</title>
+<link rel="stylesheet" href="sanguesp-styles.css">
+</head>
+<body>
+
+<header class="topo">
+  <h1><svg width="26" height="26" viewBox="0 0 24 24" style="vertical-align:-5px; margin-right:6px;"><path d="M12 2C12 2 4 12 4 16.5C4 20.09 7.13 23 11 23H13C16.87 23 20 20.09 20 16.5C20 12 12 2 12 2Z" fill="#b3122b"/></svg>Sangue<span>BR</span></h1>
+  <p><a href="index.html" style="color:var(--muted); text-decoration:none;">← Voltar</a></p>
+</header>
+
+<div class="container">
+  <div id="msgBox"></div>
+
+  <p style="font-size:14px; color:var(--muted); margin-bottom:20px;">
+    Deixe seu contato e avisamos por e-mail quando o seu tipo sanguíneo estiver
+    baixo ou crítico em algum hemocentro perto de você. Sem spam, só quando fizer diferença.
+  </p>
+
+  <p style="font-size:12px; color:var(--muted); margin-bottom:20px;">
+    Dúvidas ou problemas com o cadastro? Fale com a gente: <a href="mailto:sanguebr@protonmail.com">sanguebr@protonmail.com</a>
+  </p>
+
+  <form id="formDoador">
+    <div class="field">
+      <label for="nome">Nome</label>
+      <input type="text" id="nome" required>
+    </div>
+
+    <div class="field">
+      <label for="email">E-mail</label>
+      <input type="email" id="email" required>
+    </div>
+
+    <div class="field">
+      <label for="tipoSanguineo">Tipo sanguíneo</label>
+      <select id="tipoSanguineo" required>
+        <option value="" disabled selected>Selecione</option>
+        <option value="O-">O-</option>
+        <option value="O+">O+</option>
+        <option value="A-">A-</option>
+        <option value="A+">A+</option>
+        <option value="B-">B-</option>
+        <option value="B+">B+</option>
+        <option value="AB-">AB-</option>
+        <option value="AB+">AB+</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="cidade">Sua cidade</label>
+      <input type="text" id="cidade" required placeholder="Ex: Suzano, Campinas, São Paulo...">
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block" id="btnCadastrar">Quero ser avisado</button>
+  </form>
+</div>
+
+<footer class="rodape">SangueBR — cada doação pode salvar até 4 vidas 🩸</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+  function mostraMsg(texto, tipo) {
+    document.getElementById('msgBox').innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
+  }
+
+  document.getElementById('formDoador').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnCadastrar');
+    btn.disabled = true;
+    btn.textContent = 'Cadastrando...';
+
+    const { error } = await sb.from('doadores').insert({
+      nome: document.getElementById('nome').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      tipo_sanguineo: document.getElementById('tipoSanguineo').value,
+      cidade: document.getElementById('cidade').value.trim(),
+      ativo: true,
+    });
+
+    if (error) {
+      // Erro comum: e-mail já cadastrado (coluna única) — trata como sucesso silencioso.
+      if (error.code === '23505') {
+        mostraMsg('Esse e-mail já está cadastrado. Você já vai receber os alertas!', 'ok');
+      } else {
+        mostraMsg('Não foi possível cadastrar. Tente novamente.', 'error');
+        console.error(error);
+      }
+      btn.disabled = false;
+      btn.textContent = 'Quero ser avisado';
+      return;
+    }
+
+    mostraMsg('Pronto! Você vai receber um e-mail quando seu tipo estiver em falta perto de você.', 'ok');
+    document.getElementById('formDoador').reset();
+    btn.disabled = false;
+    btn.textContent = 'Quero ser avisado';
+  });
+</script>
+</body>
+</html>

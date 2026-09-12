@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel do curador — SangueBR</title>
+<link rel="stylesheet" href="sanguesp-styles.css">
+</head>
+<body>
+
+<header class="topo">
+  <h1><svg width="26" height="26" viewBox="0 0 24 24" style="vertical-align:-5px; margin-right:6px;"><path d="M12 2C12 2 4 12 4 16.5C4 20.09 7.13 23 11 23H13C16.87 23 20 20.09 20 16.5C20 12 12 2 12 2Z" fill="#b3122b"/></svg>Sangue<span>BR</span></h1>
+  <p>Painel do curador — atualize os níveis manualmente</p>
+</header>
+
+<div class="container">
+  <div id="msgBox"></div>
+  <div id="painel"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+  const TIPOS = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+
+  function mostraMsg(texto, tipo) {
+    document.getElementById('msgBox').innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
+  }
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  async function exigirLogin() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      window.location.href = 'login-admin.html';
+      return null;
+    }
+    return session;
+  }
+
+  async function carregarPainel() {
+    const session = await exigirLogin();
+    if (!session) return;
+
+    const { data: perfil } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+    if (!perfil) {
+      mostraMsg('Perfil não encontrado. Fale com o administrador.', 'error');
+      return;
+    }
+
+    const ehEditorRestrito = perfil.role === 'editor_hemocentro';
+    if (ehEditorRestrito) {
+      document.querySelector('header.topo p').textContent = 'Atualize o estoque do seu hemocentro';
+    }
+
+    let query = sb.from('hemocentros').select('*').order('cidade');
+    if (ehEditorRestrito) query = query.eq('id', perfil.hemocentro_id);
+    const { data: hemocentros } = await query;
+
+    const { data: estoque } = await sb.from('estoque').select('*');
+
+    const estoquePorHemo = {};
+    (estoque || []).forEach(e => {
+      if (!estoquePorHemo[e.hemocentro_id]) estoquePorHemo[e.hemocentro_id] = {};
+      estoquePorHemo[e.hemocentro_id][e.tipo_sanguineo] = e.nivel;
+    });
+
+    const painel = document.getElementById('painel');
+    painel.innerHTML = (hemocentros || []).map(h => {
+      const linhaSelects = TIPOS.map(t => {
+        const nivelAtual = (estoquePorHemo[h.id] || {})[t] || 'sem-dado';
+        return `
+          <td>
+            <select data-hemo="${h.id}" data-tipo="${t}" class="select-nivel">
+              <option value="sem-dado" ${nivelAtual === 'sem-dado' ? 'selected' : ''}>—</option>
+              <option value="normal" ${nivelAtual === 'normal' ? 'selected' : ''}>Normal</option>
+              <option value="baixo" ${nivelAtual === 'baixo' ? 'selected' : ''}>Baixo</option>
+              <option value="critico" ${nivelAtual === 'critico' ? 'selected' : ''}>Crítico</option>
+            </select>
+          </td>
+        `;
+      }).join('');
+
+      return `
+        <h3 style="margin:20px 0 6px; font-size:15px;">${escapeHtml(h.nome)} <span style="color:var(--muted); font-weight:400;">— ${escapeHtml(h.cidade)}</span></h3>
+        <table class="admin-table">
+          <tr>${TIPOS.map(t => `<th>${t}</th>`).join('')}</tr>
+          <tr>${linhaSelects}</tr>
+        </table>
+      `;
+    }).join('');
+
+    document.querySelectorAll('.select-nivel').forEach(sel => {
+      sel.addEventListener('change', async (e) => {
+        const hemocentroId = e.target.dataset.hemo;
+        const tipo = e.target.dataset.tipo;
+        const nivel = e.target.value;
+
+        const { data: { session } } = await sb.auth.getSession();
+        const resp = await fetch('/atualizar-estoque', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ hemocentroId, tipoSanguineo: tipo, nivel }),
+        });
+
+        if (!resp.ok) {
+          let motivo = `HTTP ${resp.status}`;
+          try {
+            const corpo = await resp.json();
+            if (corpo && corpo.erro) motivo = corpo.erro;
+          } catch (e) { /* resposta não era JSON */ }
+          mostraMsg(`Erro ao salvar: ${motivo}`, 'error');
+          return;
+        }
+
+        const dados = await resp.json();
+        if (dados.notificados > 0) {
+          mostraMsg(`Salvo! ${dados.notificados} doador(es) de ${tipo} foram avisados por e-mail.`, 'ok');
+        } else {
+          mostraMsg('Salvo!', 'ok');
+        }
+      });
+    });
+  }
+
+  carregarPainel();
+</script>
+</body>
+</html>

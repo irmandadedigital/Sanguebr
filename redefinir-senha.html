@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redefinir senha — SangueBR</title>
+<link rel="stylesheet" href="sanguesp-styles.css">
+</head>
+<body>
+
+<header class="topo">
+  <h1><svg width="26" height="26" viewBox="0 0 24 24" style="vertical-align:-5px; margin-right:6px;"><path d="M12 2C12 2 4 12 4 16.5C4 20.09 7.13 23 11 23H13C16.87 23 20 20.09 20 16.5C20 12 12 2 12 2Z" fill="#b3122b"/></svg>Sangue<span>BR</span></h1>
+  <p>Definir nova senha</p>
+</header>
+
+<div class="container">
+  <div id="msgBox"></div>
+
+  <form id="formNovaSenha">
+    <div class="field">
+      <label for="novaSenha">Nova senha</label>
+      <input type="password" id="novaSenha" required minlength="6">
+    </div>
+    <div class="field">
+      <label for="confirmarSenha">Confirmar nova senha</label>
+      <input type="password" id="confirmarSenha" required minlength="6">
+    </div>
+    <button type="submit" class="btn btn-primary btn-block" id="btnSalvar">Salvar nova senha</button>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+  function mostraMsg(texto, tipo) {
+    document.getElementById('msgBox').innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
+  }
+
+  // O Supabase detecta sozinho o token de recuperação que vem no link do
+  // e-mail (#access_token=...&type=recovery) e cria uma sessão temporária.
+  // Só precisamos aguardar esse evento antes de liberar o formulário.
+  let sessaoRecuperacaoPronta = false;
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      sessaoRecuperacaoPronta = true;
+    }
+  });
+
+  // Fallback: se a sessão já existir ao carregar (evento pode disparar antes
+  // do listener ser registrado em alguns navegadores), libera também.
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) sessaoRecuperacaoPronta = true;
+  })();
+
+  document.getElementById('formNovaSenha').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const senha1 = document.getElementById('novaSenha').value;
+    const senha2 = document.getElementById('confirmarSenha').value;
+
+    if (senha1 !== senha2) {
+      mostraMsg('As senhas não coincidem.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btnSalvar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const { error } = await sb.auth.updateUser({ password: senha1 });
+
+    if (error) {
+      mostraMsg('Não foi possível redefinir a senha. O link pode ter expirado — peça um novo.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Salvar nova senha';
+      return;
+    }
+
+    mostraMsg('Senha redefinida com sucesso! Redirecionando para o login...', 'ok');
+    setTimeout(() => { window.location.href = 'login-admin.html'; }, 1500);
+  });
+</script>
+</body>
+</html>

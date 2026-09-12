@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background:#f7f6f5; padding:24px; color:#201c1b;">
+  <div style="max-width:480px; margin:0 auto; background:#fff; border-radius:12px; padding:24px; border:1px solid #e7e3e1;">
+    <h2 style="color:#b3122b; margin-top:0;">🩸 Seu tipo sanguíneo está em falta</h2>
+    <p>Olá {{ params.nome }},</p>
+    <p>
+      O tipo sanguíneo <strong>{{ params.tipoSanguineo }}</strong> está em nível
+      <strong>crítico</strong> no <strong>{{ params.hemocentroNome }}</strong>
+      ({{ params.hemocentroCidade }}).
+    </p>
+    <p>Se puder doar nos próximos dias, você pode ajudar a salvar vidas de verdade.</p>
+    <p style="font-size:12px; color:#766f6c; margin-top:32px;">
+      Você está recebendo este e-mail porque se cadastrou no SangueSP como doador de {{ params.tipoSanguineo }}.
+    </p>
+  </div>
+</body>
+</html>
