@@ -1,0 +1,17 @@
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    # Todo dia às 09:00 UTC (06:00 no horário de Brasília)
+    - cron: '0 9 * * *'
+  workflow_dispatch: # permite rodar manualmente também
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fazer uma consulta leve no Supabase
+        run: |
+          curl -s -o /dev/null -w "Status: %{http_code}\n" \
+            "https://eirvznhpxgghnljbhqqz.supabase.co/rest/v1/estoque?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpcnZ6bmhweGdnaG5samJocXF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MzI1MjYsImV4cCI6MjEwNDIwODUyNn0.kglRS27q5SNZ_YC9YURUKR4l1E3nuHMMryRH-rpaUh8"
